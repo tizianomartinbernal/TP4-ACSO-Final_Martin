@@ -14,6 +14,12 @@
 #include <functional>  // for the function template used in the schedule signature
 #include <thread>      // for thread
 #include <vector>      // for vector
+#include <iostream>    // for cout. Esto lo puse yo.
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+#include "Semaphore.h"
+
 
 class ThreadPool {
  public:
@@ -39,6 +45,19 @@ class ThreadPool {
   void wait();
 
 /**
+ * function that is in charge of assigning tasks to the workers
+ * and making sure that the workers are busy
+*/
+  void dispatcher();
+  
+/**
+ * function that is in charge of executing the tasks
+ * that are assigned to the workers
+*/  
+
+  void worker(int id);
+
+/**
  * Waits for all previously scheduled thunks to execute, and then
  * properly brings down the ThreadPool and any resources tapped
  * over the course of its lifetime.
@@ -46,8 +65,24 @@ class ThreadPool {
   ~ThreadPool();
   
  private:
-  std::thread dt;                // dispatcher thread handle
-  std::vector<std::thread> wts;  // worker thread handles
+  typedef struct Worker {
+    Semaphore sem;
+    bool busy = false;
+    std::thread th;
+    function<void(void)> task;
+  } worker_t;
+
+  std::thread dt;
+  std::vector<worker_t> workers;
+  std::queue<std::function<void(void)>> tasks;
+  Semaphore sem_queue;
+  std::mutex mtx_queue;
+  Semaphore sem_workers;
+  std::condition_variable_any cv_wait;
+  std::mutex mtx_wait;
+  int remaining_tasks = 0;
+  bool finish = false;
+  std::mutex mtx_count;
 
 /**
  * ThreadPools are the type of thing that shouldn't be cloneable, since it's
